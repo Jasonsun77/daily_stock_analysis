@@ -31,9 +31,23 @@ function loadMainModule(t, options = {}) {
       ipcMainHandlers.set(channel, handler);
     },
   };
-  const fakeBrowserWindow = {
-    getAllWindows: () => [],
-  };
+  function defaultBrowserWindow() {
+    return {
+      isDestroyed: () => false,
+      getAllWindows: () => [],
+      setBackgroundColor: () => undefined,
+      once: () => undefined,
+      webContents: {
+        on: () => undefined,
+        send: () => undefined,
+        setWindowOpenHandler: () => undefined,
+      },
+      loadFile: async () => undefined,
+      loadURL: async () => undefined,
+    };
+  }
+  defaultBrowserWindow.getAllWindows = () => [];
+  const fakeBrowserWindow = options.browserWindow || defaultBrowserWindow;
   const fakeNativeTheme = {
     shouldUseDarkColors: false,
     on: () => undefined,
@@ -50,6 +64,15 @@ function loadMainModule(t, options = {}) {
         shell: fakeShell,
         nativeTheme: fakeNativeTheme,
       };
+    }
+    if (request === 'http' && options.http) {
+      return options.http;
+    }
+    if (request === 'net' && options.net) {
+      return options.net;
+    }
+    if (request === 'child_process' && options.childProcess) {
+      return options.childProcess;
     }
     if (request === 'electron-updater' && options.electronUpdater) {
       return {
@@ -482,6 +505,161 @@ test('restorePackagedRuntimeStateFromBackup skips backup when app version did no
   assert.equal(fs.readFileSync(targetEnvPath, 'utf-8'), 'user-change-after-aborted-install\n');
   assert.equal(fs.existsSync(backupRoot), false);
   assert.equal(fs.existsSync(manifestPath), false);
+});
+
+test('createWindow startup path does not throw ReferenceError after restore result handling', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsa-desktop-startup-'));
+  const appDir = path.join(tempRoot, 'app');
+  const userDataDir = path.join(tempRoot, 'userData');
+  const exePath = path.join(appDir, 'Daily Stock Analysis.exe');
+  const uninstallPath = path.join(appDir, 'Uninstall Daily Stock Analysis.exe');
+  const loadedFiles = [];
+  const loadedUrls = [];
+  let startupError;
+  let updateCheckRequested = false;
+  const originalResourcesPathDescriptor = Object.getOwnPropertyDescriptor(process, 'resourcesPath');
+  const resourcesPath = path.join(tempRoot, 'resources');
+
+  function fakeBrowserWindow() {
+    return {
+      isDestroyed: () => false,
+      setBackgroundColor: () => undefined,
+      once: () => undefined,
+      webContents: {
+        on: () => undefined,
+        setWindowOpenHandler: () => undefined,
+        send: () => undefined,
+      },
+      loadFile: async (file) => {
+        loadedFiles.push(file);
+        return undefined;
+      },
+      loadURL: async (url) => {
+        loadedUrls.push(url);
+        return undefined;
+      },
+    };
+  }
+
+  const fakeBackendProcess = new EventEmitter();
+  fakeBackendProcess.pid = 12345;
+  fakeBackendProcess.exitCode = null;
+  fakeBackendProcess.signalCode = null;
+  fakeBackendProcess.stdout = new EventEmitter();
+  fakeBackendProcess.stderr = new EventEmitter();
+
+  const fakeWhenReady = () => ({
+    then: (handler) => {
+      return Promise.resolve()
+        .then(() => handler())
+        .catch((error) => {
+          startupError = error;
+        });
+    },
+  });
+
+  const fakeNet = {
+    createServer: () => {
+      const server = new EventEmitter();
+      server.once = (event, handler) => {
+        server.on(event, handler);
+        return server;
+      };
+      server.listen = () => {
+        process.nextTick(() => {
+          server.emit('listening');
+        });
+        return server;
+      };
+      server.close = (callback) => {
+        if (callback) {
+          process.nextTick(callback);
+        }
+      };
+      return server;
+    },
+  };
+
+  const fakeHttp = {
+    get: (_url, onResponse) => {
+      const request = new EventEmitter();
+      const response = new EventEmitter();
+      request.setTimeout = () => undefined;
+      request.destroy = () => undefined;
+      response.statusCode = 200;
+      response.resume = () => undefined;
+      process.nextTick(() => {
+        onResponse(response);
+      });
+      return request;
+    },
+  };
+
+  if (originalResourcesPathDescriptor) {
+    Object.defineProperty(process, 'resourcesPath', {
+      ...originalResourcesPathDescriptor,
+      value: resourcesPath,
+    });
+  } else {
+    process.resourcesPath = resourcesPath;
+  }
+
+  fs.mkdirSync(appDir, { recursive: true });
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.mkdirSync(path.join(resourcesPath, 'backend', 'stock_analysis'), { recursive: true });
+  fs.writeFileSync(exePath, '');
+  fs.writeFileSync(uninstallPath, '');
+  fs.writeFileSync(path.join(resourcesPath, 'backend', 'stock_analysis', 'stock_analysis.exe'), '');
+
+  const mainModule = loadMainModule(t, {
+    platform: 'win32',
+    browserWindow: fakeBrowserWindow,
+    http: fakeHttp,
+    net: fakeNet,
+    childProcess: {
+      spawn: () => fakeBackendProcess,
+    },
+    app: {
+      isPackaged: true,
+      getVersion: () => '3.12.0',
+      getPath: (name) => {
+        if (name === 'exe') {
+          return exePath;
+        }
+        return userDataDir;
+      },
+      whenReady: fakeWhenReady,
+      on: () => undefined,
+      quit: () => undefined,
+    },
+    electronUpdater: {
+      autoDownload: true,
+      autoInstallOnAppQuit: false,
+      on: () => undefined,
+      checkForUpdates: async () => {
+        updateCheckRequested = true;
+        return undefined;
+      },
+    },
+  });
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, 80);
+  });
+
+  assert.equal(loadedFiles.length >= 1, true);
+  assert.equal(loadedUrls.length >= 1, true);
+  assert.equal(updateCheckRequested, true);
+  assert.equal(startupError, undefined);
+
+  t.after(() => {
+    if (originalResourcesPathDescriptor) {
+      Object.defineProperty(process, 'resourcesPath', originalResourcesPathDescriptor);
+    } else {
+      delete process.resourcesPath;
+    }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
 });
 
 test('stopBackend waits for backend process exit', async (t) => {

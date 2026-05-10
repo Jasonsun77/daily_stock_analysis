@@ -1,9 +1,9 @@
-$ErrorActionPreference = 'Stop'
-
 param(
   [string]$DistDir = '',
   [string]$ReleaseTag = ''
 )
+
+$ErrorActionPreference = 'Stop'
 
 function Resolve-ReleaseTag {
   param([string]$Tag)
