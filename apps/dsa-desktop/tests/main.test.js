@@ -692,7 +692,7 @@ test('createWindow startup path does not throw ReferenceError after restore resu
 });
 
 test('stopBackend waits for backend process exit', async (t) => {
-  const mainModule = loadMainModule(t);
+  const mainModule = loadMainModule(t, { platform: 'linux' });
   const killSignals = [];
   const fakeBackend = new EventEmitter();
 
@@ -727,7 +727,7 @@ test('stopBackend waits for backend process exit', async (t) => {
 });
 
 test('stopBackend keeps backend process reference when exit wait times out', async (t) => {
-  const mainModule = loadMainModule(t);
+  const mainModule = loadMainModule(t, { platform: 'linux' });
   const originalSetTimeout = global.setTimeout;
   const killSignals = [];
   const fakeBackend = new EventEmitter();
@@ -758,4 +758,52 @@ test('stopBackend keeps backend process reference when exit wait times out', asy
 
   assert.equal(killSignals.includes('SIGTERM'), true);
   assert.equal(mainModule.__getBackendProcessForTest(), fakeBackend);
+});
+
+test('stopBackend uses taskkill on Windows and clears after backend exit', async (t) => {
+  const taskkillCalls = [];
+  const fakeBackend = new EventEmitter();
+  const fakeTaskkill = new EventEmitter();
+  const mainModule = loadMainModule(t, {
+    platform: 'win32',
+    childProcess: {
+      spawn: (command, args, options) => {
+        taskkillCalls.push({ command, args, options });
+        process.nextTick(() => {
+          fakeBackend.exitCode = 0;
+          fakeBackend.emit('exit', 0, null);
+          fakeTaskkill.emit('exit', 0, null);
+        });
+        return fakeTaskkill;
+      },
+    },
+  });
+
+  fakeBackend.pid = 4321;
+  fakeBackend.killed = false;
+  fakeBackend.exitCode = null;
+  fakeBackend.signalCode = null;
+  fakeBackend.kill = () => {
+    throw new Error('Windows stopBackend should use taskkill instead of process.kill');
+  };
+
+  mainModule.__setBackendProcessForTest(fakeBackend);
+
+  t.after(() => {
+    mainModule.__setBackendProcessForTest(null);
+  });
+
+  await Promise.race([
+    mainModule.stopBackend(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('stopBackend did not resolve')), 200)),
+  ]);
+
+  assert.deepEqual(taskkillCalls, [
+    {
+      command: 'taskkill',
+      args: ['/PID', '4321', '/T', '/F'],
+      options: { windowsHide: true },
+    },
+  ]);
+  assert.equal(mainModule.__getBackendProcessForTest(), null);
 });
