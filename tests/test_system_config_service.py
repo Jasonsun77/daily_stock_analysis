@@ -131,6 +131,44 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(items["REPORT_SHOW_LLM_MODEL"]["value"], "")
         self.assertTrue(items["REPORT_SHOW_LLM_MODEL"]["raw_value_exists"])
 
+    def test_get_config_uses_runtime_env_as_display_fallback(self) -> None:
+        self._rewrite_env(
+            "STOCK_LIST=600519",
+            "LOG_LEVEL=INFO",
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "STOCK_LIST": "300750",
+                "LITELLM_MODEL": "openai/gpt-5",
+                "LLM_CHANNELS": "my_proxy",
+                "LLM_MY_PROXY_BASE_URL": "https://proxy.example.com/v1",
+                "LLM_MY_PROXY_MODELS": "gpt-5",
+                "LLM_UNUSED_API_KEY": "sk-should-not-leak",
+                "UNRELATED_API_KEY": "sk-should-not-leak",
+            },
+        ):
+            payload = self.service.get_config(include_schema=True)
+            raw_payload = self.service.get_config(include_schema=False)
+
+        items = {item["key"]: item for item in payload["items"]}
+        raw_items = {item["key"]: item for item in raw_payload["items"]}
+        self.assertEqual(items["STOCK_LIST"]["value"], "600519")
+        self.assertTrue(items["STOCK_LIST"]["raw_value_exists"])
+        self.assertEqual(items["LITELLM_MODEL"]["value"], "openai/gpt-5")
+        self.assertFalse(items["LITELLM_MODEL"]["raw_value_exists"])
+        self.assertEqual(items["LLM_CHANNELS"]["value"], "my_proxy")
+        self.assertFalse(items["LLM_CHANNELS"]["raw_value_exists"])
+        self.assertEqual(items["LLM_MY_PROXY_BASE_URL"]["value"], "https://proxy.example.com/v1")
+        self.assertFalse(items["LLM_MY_PROXY_BASE_URL"]["raw_value_exists"])
+        self.assertEqual(items["LLM_MY_PROXY_MODELS"]["value"], "gpt-5")
+        self.assertFalse(items["LLM_MY_PROXY_MODELS"]["raw_value_exists"])
+        self.assertNotIn("LLM_UNUSED_API_KEY", items)
+        self.assertNotIn("UNRELATED_API_KEY", items)
+        self.assertNotIn("LLM_UNUSED_API_KEY", raw_items)
+        self.assertNotIn("UNRELATED_API_KEY", raw_items)
+
     def test_get_config_with_schema_hides_unregistered_env_keys(self) -> None:
         self._rewrite_env(
             "STOCK_LIST=600519,000001",
