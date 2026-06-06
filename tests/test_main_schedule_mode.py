@@ -854,6 +854,78 @@ class MainScheduleModeTestCase(unittest.TestCase):
         self.assertIn("## 完整大盘复盘", notifier_message)
         self.assertNotIn("大盘退潮，高风险，建议观望。", notifier_message)
 
+    def test_run_market_review_with_shared_lock_forwards_request_config(self) -> None:
+        config = self._make_config(
+            trading_day_check_enabled=False,
+            market_review_enabled=True,
+            single_stock_notify=False,
+            merge_email_notification=False,
+            analysis_delay=0,
+            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+        )
+        run_review = MagicMock(return_value="复盘结果")
+
+        with patch("src.core.market_review_lock.try_acquire_market_review_lock", return_value=object()) as acquire_lock, \
+             patch("src.core.market_review_lock.release_market_review_lock") as release_lock:
+            result = main._run_market_review_with_shared_lock(
+                config,
+                run_review,
+                send_notification=False,
+            )
+
+        self.assertEqual(result, "复盘结果")
+        acquire_lock.assert_called_once_with(config)
+        run_review.assert_called_once_with(config=config, send_notification=False)
+        release_lock.assert_called_once_with(unittest.mock.ANY)
+
+    def test_prime_daily_market_context_uses_ephemeral_service_for_multi_market_region(self) -> None:
+        config = self._make_config(
+            trading_day_check_enabled=False,
+            market_review_enabled=True,
+            single_stock_notify=False,
+            merge_email_notification=False,
+            analysis_delay=0,
+            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+        )
+        pipeline = MagicMock()
+        pipeline._daily_market_context_service = MagicMock()
+        pipeline._daily_market_context_service.get_context.return_value = SimpleNamespace(
+            source="analysis_history",
+            summary="旧A股复盘摘要",
+        )
+        pipeline.db = MagicMock()
+        context = SimpleNamespace(source="analysis_history", summary="多市场复盘摘要", full_report="完整复盘正文")
+        regional_service = MagicMock()
+        regional_service.get_context.return_value = context
+
+        with patch("src.services.daily_market_context.DailyMarketContextService", return_value=regional_service) as service_cls:
+            summary, full_report = main._prime_daily_market_context(
+                config,
+                pipeline=pipeline,
+                region="cn,us",
+                no_market_review=False,
+                allow_generate=False,
+                target_date=date(2026, 3, 26),
+                return_full_report=True,
+            )
+
+        self.assertEqual(summary, "多市场复盘摘要")
+        self.assertEqual(full_report, "完整复盘正文")
+        service_cls.assert_called_once_with(db_manager=pipeline.db)
+        regional_service.get_context.assert_called_once()
+        self.assertIsNot(
+            regional_service,
+            pipeline._daily_market_context_service,
+            "多市场预热必须使用独立服务避免共享缓存污染",
+        )
+        pipeline._daily_market_context_service.get_context.assert_not_called()
+
+        get_context_kwargs = regional_service.get_context.call_args.kwargs
+        self.assertEqual(get_context_kwargs["region"], "cn,us")
+        self.assertFalse(get_context_kwargs["force_refresh"])
+        self.assertFalse(get_context_kwargs["allow_generate"])
+        self.assertFalse(get_context_kwargs["persist_market_review_history"])
+
     def test_market_review_mode_uses_shared_runtime_assembly(self) -> None:
         args = self._make_args(market_review=True)
         config = self._make_config(

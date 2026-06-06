@@ -245,25 +245,18 @@ class DailyMarketContextService:
             return self._load_same_day_history(region=region, target_date=target_date)
 
         try:
-            try:
-                result = run_market_review(
-                    notifier=notifier,
-                    analyzer=analyzer,
-                    search_service=search_service,
-                    send_notification=False,
-                    merge_notification=False,
-                    override_region=region,
-                    return_structured=True,
-                    save_report_file=False,
-                    persist_history=persist_market_review_history,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "大盘复盘上下文生成失败，个股分析继续: %s",
-                    exc,
-                    exc_info=True,
-                )
-                return None
+            result = run_market_review(
+                config=config,
+                notifier=notifier,
+                analyzer=analyzer,
+                search_service=search_service,
+                send_notification=False,
+                merge_notification=False,
+                override_region=region,
+                return_structured=True,
+                save_report_file=False,
+                persist_history=persist_market_review_history,
+            )
 
             if (
                 hasattr(result, "market_review_payload")
@@ -285,6 +278,13 @@ class DailyMarketContextService:
                 fallback_summary=fallback_summary,
                 fallback_full_report=fallback_summary,
             )
+        except Exception as exc:
+            logger.warning(
+                "大盘复盘上下文生成失败，个股分析继续: %s",
+                exc,
+                exc_info=True,
+            )
+            return None
         finally:
             release_market_review_lock(lock_token)
 

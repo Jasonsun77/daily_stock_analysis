@@ -60,8 +60,10 @@ def test_conservative_market_context_softens_aggressive_buy() -> None:
     assert result.decision_type == "hold"
     assert "暂不追高" in result.operation_advice
     assert result.confidence_level == "中"
+    assert result.sentiment_score == 52
     assert result.dashboard["operation_advice"] == result.operation_advice
     assert result.dashboard["decision_type"] == "hold"
+    assert result.dashboard["sentiment_score"] == 52
     core = result.dashboard["core_conclusion"]
     assert core["one_sentence"] == result.operation_advice
     assert core["position_advice"] == {

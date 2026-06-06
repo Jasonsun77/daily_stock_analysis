@@ -464,9 +464,21 @@ def _run_market_review_with_shared_lock(
         return None
 
     try:
-        return run_market_review_func(**kwargs)
+        params = dict(kwargs)
+        params.setdefault("config", config)
+        return run_market_review_func(**params)
     finally:
         release_market_review_lock(lock_token)
+
+
+def _is_multi_market_region(region: str) -> bool:
+    normalized = str(region or "").strip().lower()
+    if not normalized:
+        return False
+    if normalized == "both":
+        return True
+    parts = {item.strip() for item in normalized.split(",") if item.strip()}
+    return len(parts) > 1
 
 
 def _refresh_stock_index_cache_for_analysis(config: Config) -> None:
@@ -502,10 +514,13 @@ def _prime_daily_market_context(
 
     from src.services.daily_market_context import DailyMarketContextService
 
-    service = getattr(pipeline, "_daily_market_context_service", None)
-    if service is None:
+    if not _is_multi_market_region(region):
+        service = getattr(pipeline, "_daily_market_context_service", None)
+        if service is None:
+            service = DailyMarketContextService(db_manager=pipeline.db)
+            pipeline._daily_market_context_service = service
+    else:
         service = DailyMarketContextService(db_manager=pipeline.db)
-        pipeline._daily_market_context_service = service
 
     get_context_kwargs = {
         "region": region,

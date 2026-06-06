@@ -28,6 +28,7 @@ _AGGRESSIVE_BUY_MARKERS_EN = ("buy now", "strong buy", "aggressive buy", "chase"
 _NEGATION_HINTS_ZH = ("暂不", "不建议", "不应", "不宜", "不能", "无法", "不允许", "禁止", "避免", "不要", "别", "先不")
 _NEGATION_HINTS_EN = (" not ", " do not ", "don't", "no ", "never", "avoid")
 _NEGATION_LOOKBACK = 6
+_GUARDRAIL_SENTIMENT_SCORE = 52
 
 
 def apply_daily_market_context_guardrail(
@@ -63,6 +64,10 @@ def apply_daily_market_context_guardrail(
         result.confidence_level = "Medium" if language == "en" else "中"
         adjustments.append("confidence_capped_daily_market_context")
 
+    result.sentiment_score = _cap_conservative_sentiment_score(
+        getattr(result, "sentiment_score", 0)
+    )
+
     dashboard = getattr(result, "dashboard", None)
     if not isinstance(dashboard, dict):
         dashboard = {}
@@ -89,6 +94,9 @@ def _sync_softened_dashboard_fields(
     softened_advice: str,
     language: str,
 ) -> None:
+    dashboard["sentiment_score"] = _cap_conservative_sentiment_score(
+        dashboard.get("sentiment_score", _GUARDRAIL_SENTIMENT_SCORE)
+    )
     dashboard["operation_advice"] = softened_advice
     dashboard["decision_type"] = "hold"
 
@@ -222,6 +230,14 @@ def _contains_negation_near_marker(context: str, negation_hints: tuple[str, ...]
     if sep_pos >= 0:
         tail = context[sep_pos + 1 :]
     return any(hint in tail for hint in negation_hints)
+
+
+def _cap_conservative_sentiment_score(value: Any) -> int:
+    try:
+        score = int(float(value))
+    except (TypeError, ValueError):
+        return _GUARDRAIL_SENTIMENT_SCORE
+    return min(_GUARDRAIL_SENTIMENT_SCORE, max(0, score))
 
 def _is_high_confidence(value: Any) -> bool:
     return str(value or "").strip().lower() in {"高", "high"}
