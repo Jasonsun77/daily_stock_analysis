@@ -50,18 +50,18 @@ NEWS_INTEL_MAX_ITEMS_PER_SOURCE=50
 - 个股传统分析会优先读取 `symbol=<股票代码>` 的资讯，并补充同市场 `market` 级资讯；内容追加到既有 `news_context`，随 AnalysisContextPack 摘要和历史 `news_content` 保存。
 - Agent 分析同样通过 `news_context` 注入本地资讯证据，避免 Agent 必须重新搜索才能看到已沉淀新闻。
 - 大盘复盘会把同市场 `market` 级资讯合并到市场新闻列表，Prompt、结构化 payload 和报告 news 字段都能看到来源链接。
-- 本次能力仅新增本地资讯消费路径，不改模型名、provider/base URL、回退策略或运行时配置语义；兼容现有部署配置，回滚方式为清退本地资讯接入入口或移除本地资讯源配置/数据。
+- 本次能力仅新增本地资讯消费路径，不改模型名、provider/base URL、默认模型策略、回退策略、`save_context_snapshot` 前清理逻辑或运行时配置语义；兼容现有部署配置，回滚方式为清退本地资讯接入入口或移除本地资讯源配置/数据。
 
 后续 PR 可以继续完善报告 evidence 展示和 Web 设置/报告查看入口。
 
 ## 兼容性与回滚说明（Issue #1707）
 
-- 本功能不改动第三方模型/API Provider 语义，不新增 provider/model/base URL/运行时路由或配置迁移分支。
-- 结构化检测提示中的模型/API 兼容风险在本次改动中不成立：`news_context` 注入链路仅复用现有 LLM 分析输入构造流程（`src/core/pipeline.py`、`src/market_analyzer.py`、`src/analyzer.py`），且无新增 `.env` 写入、清理、回填逻辑。
+- 本功能不改动第三方模型/API Provider 语义，不新增 provider/model/base URL/默认模型策略/运行时路由或配置迁移分支。
+- 结构化检测提示中的模型/API 兼容风险在本次改动中不成立：`news_context` 注入链路仅复用现有 LLM 分析输入构造流程（`src/core/pipeline.py`、`src/market_analyzer.py`、`src/analyzer.py`），且不新增 `.env` 写入、保存前清理、清空/回填逻辑。
 - 回滚方式：`revert` 本 PR；如需降级配置，仅需停用并移除本地资讯源配置（含 `sources` 表与 `intelligence_items` 存量）即可，不影响原有模型、provider 或其它历史分析链路。
 
 ## PR 描述可复用内容（Issue #1707）
 
 - Refs: `#1707`
-- 兼容性结论：本次仅新增本地资讯消费链路，不改模型名/provider/base URL/回退策略/运行时配置迁移。`news_context` 与 `market_review_payload` 的扩展为 best-effort 追加，不影响既有契约与兼容性边界。
+- 兼容性结论：本次仅新增本地资讯消费链路，不改模型名/provider/base URL/默认模型策略/回退策略/保存前清理逻辑/运行时配置迁移。`news_context` 与 `market_review_payload` 的扩展为 best-effort 追加，不影响既有契约与兼容性边界。
 - 回滚方案：最小回滚路径为 `revert this PR`；如仅需降级接入，可在运行时停用并清理本地资讯源（`sources` 与 `intelligence_items`）。
