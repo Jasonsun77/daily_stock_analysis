@@ -148,6 +148,7 @@ function deferredPromise<T>() {
 }
 
 beforeEach(() => {
+  window.history.pushState({}, '', '/');
   window.localStorage.clear();
   window.localStorage.setItem('dsa.uiLanguage', 'zh');
   vi.clearAllMocks();
@@ -183,6 +184,23 @@ describe('DecisionSignalsPage', () => {
     expect(screen.getByText('贵州茅台').closest('button')).toBeNull();
     expect(screen.getByText('放量下跌风险')).toBeInTheDocument();
     expect(screen.getByText(formattedCreatedAt)).toBeInTheDocument();
+  });
+
+  it('uses a source report id query parameter as an exact analysis lookup on load', async () => {
+    window.history.pushState({}, '', '/decision-signals?sourceReportId=3001&status=closed&market=cn');
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'AI 建议' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(decisionSignalsApi.list).toHaveBeenCalledWith({
+        sourceReportId: 3001,
+        sourceType: 'analysis',
+        page: 1,
+        pageSize: 20,
+      });
+    });
+    expect(screen.getByLabelText('来源报告 ID')).toHaveValue(3001);
   });
 
   it('renders decision signal enum filter labels in Chinese', async () => {

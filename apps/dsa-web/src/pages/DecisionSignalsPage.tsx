@@ -91,11 +91,31 @@ const STATUS_ACTION_CONFIRM_KEYS: Record<PendingStatusChange['status'], UiTextKe
   archived: 'decisionSignals.archiveConfirm',
 };
 
+const DEFAULT_LIST_FILTERS: ListFilters = {
+  market: '',
+  stockCode: '',
+  action: '',
+  marketPhase: '',
+  sourceType: '',
+  sourceReportId: '',
+  status: 'active',
+};
+
 function parseSourceReportId(value: string): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const parsed = Number(trimmed);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function getInitialFilters(search = typeof window === 'undefined' ? '' : window.location.search): ListFilters {
+  const params = new URLSearchParams(search);
+  const sourceReportId = parseSourceReportId(params.get('sourceReportId') ?? params.get('source_report_id') ?? '');
+  if (sourceReportId === undefined) return DEFAULT_LIST_FILTERS;
+  return {
+    ...DEFAULT_LIST_FILTERS,
+    sourceReportId: String(sourceReportId),
+  };
 }
 
 function toListParams(filters: ListFilters, page: number): DecisionSignalListParams {
@@ -143,16 +163,8 @@ function formatStatPercent(value: number | null | undefined): string {
 const DecisionSignalsPage: React.FC = () => {
   const { t } = useUiLanguage();
   const actionLabels = useMemo(() => buildDecisionActionLabelMap(t), [t]);
-  const [filters, setFilters] = useState<ListFilters>({
-    market: '',
-    stockCode: '',
-    action: '',
-    marketPhase: '',
-    sourceType: '',
-    sourceReportId: '',
-    status: 'active',
-  });
-  const [appliedFilters, setAppliedFilters] = useState<ListFilters>(filters);
+  const [filters, setFilters] = useState<ListFilters>(() => getInitialFilters());
+  const [appliedFilters, setAppliedFilters] = useState<ListFilters>(() => getInitialFilters());
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<DecisionSignalItem[]>([]);
   const [total, setTotal] = useState(0);
