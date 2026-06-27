@@ -98,7 +98,7 @@ python -m pytest -m "not network"
   - 产物路径（无截图时）：`apps/dsa-web/test-results/**/smoke-settings-page-*.png`
   - 说明：截图（或产物）必须可见 `MARKET_REVIEW_REGION` 枚举变更文本（A 股 / 港股 / 美股 / 日股 / 韩股 / 全部市场）。
 
-- 若本 PR 修改 `MARKET_REVIEW_REGION`、设置字段文案或帮助文案（如大盘复盘市场/交易日开关/色彩方案），截图或替代证据必须可定位到“系统设置 → 市场复盘”区域并指向对应字段。
+- 若本 PR 修改 `MARKET_REVIEW_REGION`、设置字段文案或帮助文案（如大盘复盘市场/交易日开关/色彩方案），截图或替代证据必须可定位到“系统设置 → 市场复盘”区域并指向对应字段；该项为必填。
 
 > 若本 PR 修改 Web UI 或报告展示且无法获取截图，原因栏必须给出可复现替代证据（例如 Playwright 截图产物路径 + 命令），且不得留空。
 
@@ -114,6 +114,7 @@ python -m pytest -m "not network"
   *(EN) If this PR depends on a specific runtime or pinned dependency window (for example a LiteLLM version range, OpenAI-compatible routing, or YAML alias behavior), state the compatibility window you verified and which code paths were covered.)*
 - 若本 PR 触及运行时配置保存、清理、迁移或回填逻辑，请明确说明旧配置是否会被自动改写、清空、迁移或保持不变，以及用户如何恢复原行为。  
   *(EN) If this PR touches runtime config save/cleanup/migration/backfill logic, explicitly describe whether existing config is rewritten, cleared, migrated, or left intact, and how users can restore the previous behavior.)*
+- 若本 PR **未触及** provider/model/base URL 或运行时配置保存/清理/迁移逻辑（本条仅作为声明），请明确写：`本 PR 未变更 provider/model/base URL、运行时配置清理迁移语义；历史配置保持不变；回滚方式为 revert 本提交。`
 
 ## Rollback Plan
 

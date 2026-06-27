@@ -22,6 +22,7 @@
 兼容性与回退说明（针对结构化检测命中项）：
 
 - `#1815` 本次仅新增 `yfinance` 报价/基本面上下文中的可选字段元数据（如 `market`、`currency`、`data_quality`、`missing_fields`、`provider`），未改动 LLM provider/model/base URL、配置 Schema、运行时环境变量、数据库字段、存量缓存序列化或消息协议版本。
+- 与本条 PR 相关的配置语义上，未新增或替换 provider、model、base URL，未新增配置清理/迁移分支；已保存配置仍保持原样，回退方式为回退该提交。
 - 外部 API 边界仍仅限既有 `yfinance` fetch 路径（含 `Ticker`/`history`/`fast_info`）与既有兜底逻辑；没有新增或迁移 API 网关/host，`YFINANCE_PRIORITY` 是唯一受影响的可见参数。JP/KR 主指数与 Yahoo symbol 对应如下（可核验）：
   - 日经225：`^N225`（<https://finance.yahoo.com/quote/%5EN225/>）
   - 东证指数：`^TOPX`（<https://finance.yahoo.com/quote/%5ETOPX/>）
