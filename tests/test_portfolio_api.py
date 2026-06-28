@@ -207,10 +207,13 @@ class PortfolioApiTestCase(unittest.TestCase):
 
         snapshot_resp = self.client.get(
             "/api/v1/portfolio/snapshot",
-            params={"account_id": account_id, "as_of": "2026-01-03"},
+            params={"as_of": "2026-01-03"},
         )
         self.assertEqual(snapshot_resp.status_code, 200)
-        account_snapshot = snapshot_resp.json()["accounts"][0]
+        payload = snapshot_resp.json()
+        self.assertEqual(payload["data_quality"], "partial")
+        self.assertIn("fx_and_cost_basis_partial", payload["limitations"])
+        account_snapshot = payload["accounts"][0]
         position = account_snapshot["positions"][0]
 
         self.assertEqual(account_snapshot["market"], "cn")

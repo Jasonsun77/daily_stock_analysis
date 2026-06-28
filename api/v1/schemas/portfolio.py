@@ -211,6 +211,8 @@ class PortfolioSnapshotResponse(BaseModel):
     fee_total: float
     tax_total: float
     fx_stale: bool
+    data_quality: str = "ok"
+    limitations: List[str] = Field(default_factory=list)
     accounts: List[PortfolioAccountSnapshot] = Field(default_factory=list)
 
 

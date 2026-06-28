@@ -495,6 +495,7 @@ class PortfolioService:
             "fee_total": 0.0,
             "tax_total": 0.0,
             "fx_stale": False,
+            "limitations": [],
         }
 
         for account in account_rows:
@@ -520,6 +521,10 @@ class PortfolioService:
             )
 
             accounts_payload.append(account_snapshot["public"])
+            aggregate["limitations"] = _merge_portfolio_limitations(
+                aggregate["limitations"],
+                account_snapshot["public"].get("limitations", []),
+            )
 
             cash_cny, stale_cash, _ = self._convert_amount(
                 amount=account_snapshot["total_cash"],
@@ -596,6 +601,8 @@ class PortfolioService:
             "fee_total": round(aggregate["fee_total"], 6),
             "tax_total": round(aggregate["tax_total"], 6),
             "fx_stale": aggregate["fx_stale"],
+            "data_quality": "partial" if aggregate["limitations"] else "ok",
+            "limitations": aggregate["limitations"],
             "accounts": accounts_payload,
         }
 

@@ -91,6 +91,8 @@ export interface PortfolioSnapshotResponse {
   feeTotal: number;
   taxTotal: number;
   fxStale: boolean;
+  dataQuality?: 'ok' | 'partial' | string;
+  limitations?: string[];
   accounts: PortfolioAccountSnapshot[];
 }
 
